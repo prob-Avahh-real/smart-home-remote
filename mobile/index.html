@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#0f172a">
+  <title>智家遥控</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    :root {
+      --bg: #0b1220;
+      --surface: rgba(30, 41, 59, 0.92);
+      --border: #334155;
+      --text: #e2e8f0;
+      --muted: #94a3b8;
+      --accent: #38bdf8;
+      --accent2: #818cf8;
+      --success: #34d399;
+      --danger: #f87171;
+      --nav-h: 64px;
+      --safe-b: env(safe-area-inset-bottom, 0px);
+    }
+    body {
+      font-family: "PingFang SC", "SF Pro Text", "Microsoft YaHei", sans-serif;
+      background: linear-gradient(165deg, #0b1220 0%, #1e293b 45%, #0f172a 100%);
+      color: var(--text);
+      min-height: 100vh;
+      padding-bottom: calc(var(--nav-h) + var(--safe-b) + 8px);
+    }
+    .app-header {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      padding: 16px 16px 8px;
+      background: linear-gradient(180deg, rgba(11,18,32,0.98) 70%, transparent);
+      backdrop-filter: blur(8px);
+    }
+    .app-header h1 { font-size: 1.35rem; font-weight: 800; letter-spacing: -0.02em; }
+    .app-header .sub { font-size: 0.72rem; color: var(--muted); margin-top: 2px; }
+    .stats-row {
+      display: flex;
+      gap: 8px;
+      margin-top: 10px;
+    }
+    .stat-pill {
+      flex: 1;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 8px 10px;
+      text-align: center;
+    }
+    .stat-pill .val { font-size: 1.1rem; font-weight: 800; color: var(--accent); }
+    .stat-pill .lbl { font-size: 0.62rem; color: var(--muted); margin-top: 2px; }
+    main { padding: 0 16px 16px; }
+    .panel { display: none; }
+    .panel.active { display: block; }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 14px;
+      margin-bottom: 10px;
+    }
+    .card h2 {
+      font-size: 0.78rem;
+      color: var(--muted);
+      font-weight: 600;
+      margin-bottom: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .device-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px;
+    }
+    .device-card {
+      background: linear-gradient(145deg, rgba(51,65,85,0.5), rgba(15,23,42,0.8));
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 14px 12px;
+      cursor: pointer;
+      transition: transform 0.15s, border-color 0.15s;
+      position: relative;
+      overflow: hidden;
+    }
+    .device-card:active { transform: scale(0.97); }
+    .device-card.on { border-color: rgba(56,189,248,0.5); box-shadow: 0 0 20px rgba(56,189,248,0.12); }
+    .device-card .icon { font-size: 1.8rem; margin-bottom: 6px; }
+    .device-card .name { font-size: 0.88rem; font-weight: 700; }
+    .device-card .summary { font-size: 0.68rem; color: var(--muted); margin-top: 4px; line-height: 1.3; }
+    .device-card .power-dot {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #475569;
+    }
+    .device-card.on .power-dot { background: var(--success); box-shadow: 0 0 8px var(--success); }
+    .room-tabs {
+      display: flex;
+      gap: 6px;
+      overflow-x: auto;
+      padding-bottom: 8px;
+      margin-bottom: 4px;
+      scrollbar-width: none;
+    }
+    .room-tabs::-webkit-scrollbar { display: none; }
+    .room-tab {
+      flex-shrink: 0;
+      padding: 6px 12px;
+      border-radius: 20px;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--muted);
+      font-size: 0.75rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .room-tab.active {
+      background: linear-gradient(135deg, #0284c7, #6366f1);
+      border-color: transparent;
+      color: #fff;
+    }
+    .scene-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+    .scene-card {
+      background: linear-gradient(145deg, rgba(99,102,241,0.15), rgba(30,41,59,0.9));
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 16px 12px;
+      cursor: pointer;
+      text-align: center;
+    }
+    .scene-card:active { transform: scale(0.97); }
+    .scene-card .icon { font-size: 2rem; margin-bottom: 6px; }
+    .scene-card .name { font-size: 0.85rem; font-weight: 700; }
+    .scene-card .desc { font-size: 0.65rem; color: var(--muted); margin-top: 4px; line-height: 1.3; }
+    .detail-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.55);
+      z-index: 40;
+      display: none;
+      align-items: flex-end;
+    }
+    .detail-overlay.open { display: flex; }
+    .detail-sheet {
+      width: 100%;
+      max-height: 85vh;
+      background: #1e293b;
+      border-radius: 20px 20px 0 0;
+      padding: 16px 16px calc(16px + var(--safe-b));
+      overflow-y: auto;
+      animation: slideUp 0.25s ease;
+    }
+    @keyframes slideUp {
+      from { transform: translateY(100%); }
+      to { transform: translateY(0); }
+    }
+    .detail-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .detail-header .icon { font-size: 2.2rem; }
+    .detail-header .title { font-size: 1.1rem; font-weight: 800; }
+    .detail-header .close {
+      margin-left: auto;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--text);
+      font-size: 1rem;
+      cursor: pointer;
+    }
+    .ctrl-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 0;
+      border-bottom: 1px solid rgba(51,65,85,0.6);
+    }
+    .ctrl-row:last-child { border-bottom: none; }
+    .ctrl-label { font-size: 0.85rem; font-weight: 600; }
+    .ctrl-hint { font-size: 0.68rem; color: var(--muted); margin-top: 2px; }
+    .toggle {
+      width: 48px;
+      height: 28px;
+      border-radius: 14px;
+      background: #475569;
+      border: none;
+      position: relative;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .toggle.on { background: var(--accent); }
+    .toggle::after {
+      content: '';
+      position: absolute;
+      top: 3px;
+      left: 3px;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: #fff;
+      transition: transform 0.2s;
+    }
+    .toggle.on::after { transform: translateX(20px); }
+    .step-btns { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+    .step-btn {
+      padding: 6px 10px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--muted);
+      font-size: 0.72rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .step-btn.active {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #0f172a;
+    }
+    input[type="range"] {
+      width: 100%;
+      accent-color: var(--accent);
+      margin-top: 6px;
+    }
+    .range-val {
+      font-size: 1.1rem;
+      font-weight: 800;
+      color: var(--accent);
+      text-align: right;
+    }
+    input[type="text"] {
+      width: 100%;
+      padding: 10px 12px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: #0f172a;
+      color: var(--text);
+      font-size: 0.85rem;
+      margin-bottom: 8px;
+    }
+    .btn {
+      width: 100%;
+      padding: 12px;
+      border: none;
+      border-radius: 12px;
+      font-size: 0.88rem;
+      font-weight: 700;
+      cursor: pointer;
+      background: linear-gradient(135deg, #0284c7, #6366f1);
+      color: #fff;
+      margin-bottom: 8px;
+    }
+    .btn.secondary { background: #334155; }
+    .btn:active { transform: scale(0.98); }
+    .conn-status {
+      font-size: 0.72rem;
+      color: var(--muted);
+      word-break: break-all;
+      margin-top: 6px;
+    }
+    .bottom-nav {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: calc(var(--nav-h) + var(--safe-b));
+      padding-bottom: var(--safe-b);
+      background: rgba(15,23,42,0.96);
+      border-top: 1px solid var(--border);
+      display: flex;
+      z-index: 30;
+      backdrop-filter: blur(12px);
+    }
+    .nav-item {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 2px;
+      border: none;
+      background: transparent;
+      color: var(--muted);
+      font-size: 0.62rem;
+      font-weight: 600;
+      cursor: pointer;
+      padding-top: 6px;
+    }
+    .nav-item .nav-icon { font-size: 1.25rem; }
+    .nav-item.active { color: var(--accent); }
+    .badge {
+      position: fixed;
+      right: 8px;
+      font-size: 0.62rem;
+      padding: 4px 8px;
+      border-radius: 12px;
+      display: none;
+      align-items: center;
+      gap: 4px;
+      background: #1e293b;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      z-index: 50;
+      cursor: pointer;
+    }
+    .badge.active { background: #1e3a5f; color: #7dd3fc; border-color: var(--accent); }
+    #ring-badge { top: 8px; }
+    #cane-badge { top: 36px; }
+    #gesture-badge { top: 64px; }
+    .voice-bar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 10px;
+      padding: 10px 12px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+    }
+    .voice-btn {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      border: none;
+      background: linear-gradient(135deg, #0284c7, #6366f1);
+      color: #fff;
+      font-size: 1.2rem;
+      cursor: pointer;
+      flex-shrink: 0;
+      position: relative;
+    }
+    .voice-btn.listening {
+      background: linear-gradient(135deg, #dc2626, #f97316);
+      animation: pulse 1.2s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(248,113,113,0.5); }
+      50% { box-shadow: 0 0 0 10px rgba(248,113,113,0); }
+    }
+    .voice-info { flex: 1; min-width: 0; }
+    .voice-status { font-size: 0.72rem; color: var(--muted); }
+    .voice-status.listening { color: #f87171; font-weight: 600; }
+    .voice-last {
+      font-size: 0.78rem;
+      font-weight: 600;
+      margin-top: 2px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .gesture-preview {
+      position: fixed;
+      bottom: calc(var(--nav-h) + var(--safe-b) + 52px);
+      right: 12px;
+      width: 100px;
+      height: 75px;
+      border-radius: 10px;
+      overflow: hidden;
+      border: 2px solid var(--accent);
+      background: #0f172a;
+      z-index: 45;
+      display: none;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+    }
+    .gesture-preview.active { display: block; }
+    .gesture-preview video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transform: scaleX(-1);
+    }
+    .gesture-preview canvas { display: none; }
+    .gesture-preview .gesture-label {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: rgba(15,23,42,0.85);
+      font-size: 0.55rem;
+      padding: 2px 4px;
+      text-align: center;
+      color: var(--accent);
+    }
+    .toast {
+      position: fixed;
+      bottom: calc(var(--nav-h) + var(--safe-b) + 12px);
+      left: 50%;
+      transform: translateX(-50%) translateY(20px);
+      background: rgba(30,41,59,0.95);
+      border: 1px solid var(--border);
+      padding: 8px 16px;
+      border-radius: 20px;
+      font-size: 0.78rem;
+      opacity: 0;
+      transition: opacity 0.2s, transform 0.2s;
+      z-index: 60;
+      pointer-events: none;
+    }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+    @media (max-width: 280px), (max-height: 300px) {
+      html { font-size: 11px; }
+      .app-header h1 { font-size: 1.05rem; }
+      .device-grid, .scene-grid { grid-template-columns: 1fr; }
+      .device-card .icon { font-size: 1.4rem; }
+      .nav-item .nav-icon { font-size: 1rem; }
+      .badge { font-size: 0.55rem; }
+      .gesture-preview { width: 72px; height: 54px; }
+      .voice-btn { width: 36px; height: 36px; font-size: 1rem; }
+    }
+  </style>
+</head>
+<body>
+  <div id="ring-badge" class="badge">💍 戒指</div>
+  <div id="cane-badge" class="badge">🦯 手杖</div>
+  <div id="gesture-badge" class="badge">🤚 手势</div>
+
+  <header class="app-header">
+    <h1>智家遥控</h1>
+    <p class="sub">全屋设备 · 一手掌控</p>
+    <div class="stats-row">
+      <div class="stat-pill">
+        <div class="val" id="stat-active">0</div>
+        <div class="lbl">运行中</div>
+      </div>
+      <div class="stat-pill">
+        <div class="val" id="stat-total">6</div>
+        <div class="lbl">设备总数</div>
+      </div>
+      <div class="stat-pill">
+        <div class="val" id="stat-mode">模拟</div>
+        <div class="lbl">连接模式</div>
+      </div>
+    </div>
+    <div class="voice-bar">
+      <button class="voice-btn" id="voice-btn" aria-label="语音控制">🎤</button>
+      <div class="voice-info">
+        <div class="voice-status" id="voice-status">点击麦克风开始语音控制</div>
+        <div class="voice-last" id="voice-last">—</div>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <section id="panel-home" class="panel active">
+      <div class="card">
+        <h2>快捷控制</h2>
+        <div class="device-grid" id="home-devices"></div>
+      </div>
+      <div class="card">
+        <h2>一键场景</h2>
+        <div class="scene-grid" id="home-scenes"></div>
+      </div>
+    </section>
+
+    <section id="panel-rooms" class="panel">
+      <div class="room-tabs" id="room-tabs"></div>
+      <div class="device-grid" id="room-devices"></div>
+    </section>
+
+    <section id="panel-scenes" class="panel">
+      <div class="scene-grid" id="scene-list"></div>
+    </section>
+
+    <section id="panel-settings" class="panel">
+      <div class="card">
+        <h2>MQTT 连接</h2>
+        <input id="mqtt-broker" type="text" value="ws://localhost:9001" placeholder="WebSocket 地址">
+        <button class="btn" id="btn-mqtt">连接 MQTT</button>
+        <button class="btn secondary" id="btn-sim">使用模拟器</button>
+        <div class="conn-status" id="conn-status">simulator-running</div>
+      </div>
+      <div class="card">
+        <h2>声控遥控</h2>
+        <p style="font-size:0.78rem;color:var(--muted);line-height:1.5;">
+          点击顶部 🎤 麦克风，说中文指令：<br>
+          「打开空调」「关闭电视」「空调调到26度」<br>
+          「回家模式」「全部关闭」「下一个设备」
+        </p>
+      </div>
+      <div class="card">
+        <h2>手势遥控</h2>
+        <p style="font-size:0.78rem;color:var(--muted);line-height:1.5;">
+          点击右上角 🤚 启用手势识别（需摄像头）：<br>
+          左右滑动 → 切换设备 · 张开手掌/握拳 → 切换电源<br>
+          拇指朝上 → 开启 · 拇指朝下 → 关闭
+        </p>
+      </div>
+      <div class="card">
+        <h2>可穿戴设备</h2>
+        <p style="font-size:0.78rem;color:var(--muted);line-height:1.5;">
+          点击右上角 💍/🦯 启用智能戒指或手杖。<br>
+          戒指：左右切换设备，上下开关，摇晃切换电源。<br>
+          手杖：敲击切换电源，挥动切换设备。
+        </p>
+      </div>
+    </section>
+  </main>
+
+  <nav class="bottom-nav">
+    <button class="nav-item active" data-tab="home"><span class="nav-icon">🏠</span>首页</button>
+    <button class="nav-item" data-tab="rooms"><span class="nav-icon">📱</span>房间</button>
+    <button class="nav-item" data-tab="scenes"><span class="nav-icon">✨</span>场景</button>
+    <button class="nav-item" data-tab="settings"><span class="nav-icon">⚙️</span>设置</button>
+  </nav>
+
+  <div class="detail-overlay" id="detail-overlay">
+    <div class="detail-sheet" id="detail-sheet"></div>
+  </div>
+
+  <div class="gesture-preview" id="gesture-preview">
+    <video id="gesture-video" playsinline muted autoplay></video>
+    <canvas id="gesture-canvas"></canvas>
+    <div class="gesture-label" id="gesture-label">手势识别中</div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script type="module" src="./js/app.js"></script>
+</body>
+</html>
